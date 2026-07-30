@@ -4,10 +4,11 @@ This repository exists to carry out two native-iOS migrations and keep each
 one readable on its own. The code is small on purpose; the value is in the
 diffs.
 
-| Tag      | State                   | Diff                                                                                     |
-| -------- | ----------------------- | ---------------------------------------------------------------------------------------- |
-| `v0.1.0` | Objective-C + CocoaPods | the starting point                                                                         |
-| `v0.2.0` | Swift + CocoaPods       | [`v0.1.0...v0.2.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.1.0...v0.2.0) |
+| Tag      | State                         | Diff                                                                                           |
+| -------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `v0.1.0` | Objective-C + CocoaPods       | the starting point                                                                               |
+| `v0.2.0` | Swift + CocoaPods             | [`v0.1.0...v0.2.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.1.0...v0.2.0)   |
+| `v0.3.0` | Swift + SPM **and** CocoaPods | [`v0.2.0...v0.3.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.2.0...v0.3.0)   |
 
 The rule the repository follows is one migration per diff. Mixing the Swift
 rewrite with a directory restructure would make both unreadable, so the move
@@ -238,18 +239,173 @@ something changed, it does not carry the new value.
 
 ---
 
-# What's next
+# Part 2 — CocoaPods to Swift Package Manager
 
-**Part 2 — CocoaPods to Swift Package Manager.** The plugin will support both
-at once: Flutter's guidance is explicit that plugins dropping CocoaPods break
-apps that have not migrated, and plugins without SPM support break the ones
-that have. That means a directory restructure under `ios/`, a `Package.swift`,
-and a podspec pointing at the new paths — and verifying both dependency
-managers still build.
+`v0.2.0` → `v0.3.0`. The Dart API does not change here either. What changes is
+where the iOS sources live, and the fact that the plugin now answers to two
+dependency managers instead of one.
 
-It also raises the Flutter floor, because the `FlutterFramework` package
-dependency requires 3.41 or later.
+## Both, not either
 
-The CocoaPods trunk registry goes read-only on **December 2, 2026**, which is
-what turns this from a nice-to-have into a scheduled piece of work for anyone
-shipping a Flutter plugin.
+The obvious move is to replace CocoaPods with SPM. It is also the wrong one,
+and Flutter's guidance says so directly: a plugin that drops CocoaPods breaks
+every app that has not migrated yet, and a plugin without a `Package.swift`
+breaks every app that has. Neither group is small.
+
+So `v0.3.0` ships both, from one set of sources:
+
+```
+ios/
+├── levalgo_battery_status.podspec          ← CocoaPods reads this
+└── levalgo_battery_status/
+    ├── Package.swift                       ← SPM reads this
+    └── Sources/levalgo_battery_status/
+        ├── BatteryProviding.swift
+        ├── LevalgoBatteryStatusPlugin.swift
+        └── PrivacyInfo.xcprivacy
+```
+
+There is no duplicated code. The two manifests point at the same `.swift`
+files.
+
+## Why the directories had to move
+
+This is the part that makes the diff look bigger than the change is.
+
+Swift Package Manager requires a target's sources to live **under the package
+root** — the directory holding `Package.swift`. There is no way to declare a
+target whose sources sit in `../Classes`. So `Package.swift` cannot simply be
+dropped into `ios/` next to the existing layout; either the manifest moves down
+to the sources or the sources move under the manifest, and only the second one
+satisfies the rule.
+
+Hence `ios/Classes/*.swift` → `ios/levalgo_battery_status/Sources/levalgo_battery_status/*.swift`.
+The files are byte-identical; `git mv` keeps the history attached.
+
+The podspec absorbs the move with a one-line change, because CocoaPods has no
+such constraint and happily globs anywhere below the podspec:
+
+```ruby
+# v0.2.0
+s.source_files = 'Classes/**/*.swift'
+
+# v0.3.0
+s.source_files = 'levalgo_battery_status/Sources/levalgo_battery_status/**/*.swift'
+```
+
+Worth noticing what that glob does *not* match: `Package.swift` sits at
+`ios/levalgo_battery_status/Package.swift`, one level above `Sources/`, so
+CocoaPods never tries to compile the manifest as if it were plugin code. The
+directory layout the Flutter docs prescribe is doing real work there.
+
+## The naming rule that will bite you
+
+```swift
+products: [
+  .library(name: "levalgo-battery-status", targets: ["levalgo_battery_status"])
+]
+```
+
+Package name and target name keep the underscores. The **library** name must
+use hyphens. Pub package names are snake_case by convention, so nearly every
+Flutter plugin hits this, and the error message when you get it wrong does not
+mention the rule.
+
+## `FlutterFramework`, and the floor it imposes
+
+```swift
+dependencies: [
+  .package(name: "FlutterFramework", path: "../FlutterFramework")
+]
+```
+
+That is a **path** dependency, resolving to `ios/FlutterFramework` — a
+directory that does not exist in this repository. The Flutter tool generates it
+at build time, next to the package.
+
+This is new in Flutter 3.41, and it is the reason `v0.3.0` is a breaking
+release:
+
+```yaml
+environment:
+  flutter: '>=3.41.0'   # was >=3.3.0
+```
+
+Anyone on an older Flutter has to stay on `0.2.x`. For a plugin with real
+users that trade-off deserves a conversation; here it is noted in the CHANGELOG
+and priced in.
+
+## The privacy manifest, bundled twice
+
+`PrivacyInfo.xcprivacy` moves next to the sources because both dependency
+managers have to ship it, each in its own idiom:
+
+```ruby
+# CocoaPods
+s.resource_bundles = {
+  'levalgo_battery_status_privacy' =>
+    ['levalgo_battery_status/Sources/levalgo_battery_status/PrivacyInfo.xcprivacy']
+}
+```
+
+```swift
+// SPM
+resources: [.process("PrivacyInfo.xcprivacy")]
+```
+
+One file, two packaging mechanisms. Leaving it at the old `ios/Resources/`
+path would have kept CocoaPods working and silently dropped the manifest from
+SPM builds — the kind of omission App Store review catches instead of the
+compiler.
+
+## Verifying both
+
+The point of supporting two dependency managers is lost if only one is ever
+exercised, so CI runs the iOS job as a matrix:
+
+```yaml
+matrix:
+  include:
+    - dependency-manager: CocoaPods
+      spm-flag: --no-enable-swift-package-manager
+    - dependency-manager: Swift Package Manager
+      spm-flag: --enable-swift-package-manager
+```
+
+Each leg builds the example app and runs the XCTest suite. `fail-fast: false`,
+because knowing whether a break is specific to one dependency manager or common
+to both is exactly the information the matrix exists to produce.
+
+Locally the same check is two commands:
+
+```bash
+flutter config --no-enable-swift-package-manager && (cd example && flutter run)
+flutter config --enable-swift-package-manager    && (cd example && flutter run)
+```
+
+Under SPM, `example/ios/Runner.xcworkspace` grows a **Package Dependencies**
+section in the Project Navigator. That is the quickest visual confirmation that
+the app resolved the plugin as a Swift package rather than a pod.
+
+## A note on Objective-C plugins
+
+This plugin reached SPM already written in Swift, which is the easy path. The
+Objective-C layout in Flutter's docs is a different shape and worth knowing,
+because it is the one a half-migrated codebase actually faces:
+
+- public headers move to `Sources/<name>/include/<name>/`
+- the target needs `cSettings: [.headerSearchPath("include/<name>")]`
+- `#import "Header.h"` becomes `#import "./include/<name>/Header.h"`
+- the podspec additionally needs `s.module_map`
+
+Doing both migrations in one step means the diff shows a language change and a
+directory restructure at once, and neither is reviewable. Swift first, then
+SPM, keeps each one legible.
+
+---
+
+# Why this was worth doing now
+
+The CocoaPods trunk registry goes **read-only on December 2, 2026**. Existing
+pods keep resolving, but the ecosystem stops moving, and every Flutter plugin
+author has this migration on their list whether they have scheduled it or not.

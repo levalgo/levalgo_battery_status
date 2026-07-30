@@ -3,6 +3,12 @@
 # Why it exists: the iOS native layer only really compiles with Xcode, and
 # GitHub's macOS runners ship with it. This keeps the native code compiled on
 # every push.
+#
+# Since 0.3.0 the plugin supports CocoaPods and Swift Package Manager at the
+# same time, so the iOS job runs twice, once under each. That matrix is the
+# actual deliverable of the SPM migration: a plugin that drops CocoaPods
+# breaks apps that have not migrated, and one without SPM breaks the ones that
+# have.
 name: CI
 
 on:
@@ -11,10 +17,10 @@ on:
   workflow_dispatch:
 
 env:
-  # Pinned deliberately to the same version as the development environment, so
-  # CI and local cannot disagree. Swift Package Manager will raise this to
-  # 3.41 or later, the minimum its FlutterFramework dependency requires.
-  FLUTTER_VERSION: "3.32.4"
+  # Pinned to the development environment's version so CI and local cannot
+  # disagree. 3.41 is the floor: below it the FlutterFramework package the
+  # Swift package depends on does not exist.
+  FLUTTER_VERSION: "3.44.8"
 
 jobs:
   dart:
@@ -46,8 +52,18 @@ jobs:
         run: flutter pub get && flutter test
 
   ios:
-    name: iOS - compile the native layer
+    name: iOS - ${{ matrix.dependency-manager }}
     runs-on: macos-latest
+    strategy:
+      # Both legs run even when one fails: knowing whether a break is specific
+      # to one dependency manager or common to both is the whole point.
+      fail-fast: false
+      matrix:
+        include:
+          - dependency-manager: CocoaPods
+            spm-flag: --no-enable-swift-package-manager
+          - dependency-manager: Swift Package Manager
+            spm-flag: --enable-swift-package-manager
     steps:
       - uses: actions/checkout@v4
 
@@ -60,13 +76,54 @@ jobs:
       - name: Runner Xcode version
         run: xcodebuild -version
 
+      - name: Select dependency manager
+        run: flutter config ${{ matrix.spm-flag }}
+
       - name: Install dependencies
         working-directory: example
         run: flutter pub get
 
-      - name: Build the example app
-        # This is the step that actually compiles the plugin's native sources:
-        # it runs pod install and then xcodebuild over the plugin pod.
-        # Unsigned, because the runner has no certificates.
+      - name: Build the example app for a device
+        # This is the step that actually compiles the plugin's native sources.
+        # Under CocoaPods it runs pod install first; under SPM it resolves the
+        # Swift package instead. Unsigned, because the runner has no
+        # certificates.
         working-directory: example
         run: flutter build ios --no-codesign
+
+      - name: Configure a simulator debug build
+        # The step above produces a release build for a device, which leaves
+        # Generated.xcconfig pointing at device artifacts. xcodebuild test runs
+        # a debug build on the simulator, so the configuration has to be
+        # regenerated for that combination first.
+        working-directory: example
+        run: flutter build ios --config-only --debug --simulator
+
+      - name: Run the XCTest suite
+        # The tests inject a stub through BatteryProviding, so they need no
+        # real device and run on the simulator under either dependency
+        # manager.
+        #
+        # The simulator is resolved at run time instead of hard-coding a model
+        # name: which iPhone exists depends on the Xcode version the runner
+        # image happens to ship, and a name that is missing fails the job with
+        # "Unable to find a destination".
+        working-directory: example
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available \
+            | awk '/^-- iOS/{f=1; next} /^--/{f=0} f' \
+            | grep -m1 -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')
+          echo "Using simulator $UDID"
+          xcodebuild test \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -destination "id=$UDID" \
+            CODE_SIGNING_ALLOWED=NO
+
+  # pod lib lint is deliberately not a job here. The podspec declares
+  # `s.dependency 'Flutter'`, and the Flutter pod is not published to the
+  # public CocoaPods trunk: linting it standalone needs an --include-podspecs
+  # pointing at a Flutter.podspec whose location depends on the SDK layout.
+  # The CocoaPods leg of the ios job already compiles the pod for real through
+  # pod install, which is the property that actually matters.

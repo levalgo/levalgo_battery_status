@@ -6,6 +6,9 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 environment:
   sdk: ^3.8.1
+  # Matches the plugin's floor: the Swift package depends on FlutterFramework,
+  # which the Flutter tool only generates from 3.41 onward.
+  flutter: '>=3.41.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

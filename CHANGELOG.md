@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.3.0
+
+Adds Swift Package Manager support. **CocoaPods keeps working** — the plugin
+supports both at once, on purpose.
+
+### Breaking
+
+- The minimum Flutter version moves from 3.3.0 to **3.41.0**. The Swift
+  package depends on `FlutterFramework`, which the Flutter tool generates and
+  which does not exist before 3.41. Apps on an older Flutter should stay on
+  `0.2.x`.
+
+### Changed
+
+- The iOS sources move to `ios/levalgo_battery_status/Sources/levalgo_battery_status/`.
+  Swift Package Manager requires a target's sources to live under the package
+  root, so the restructure is not optional.
+- The podspec points at the new paths. Nothing else about it changes:
+  CocoaPods compiles exactly the same files it did in `0.2.0`.
+- `PrivacyInfo.xcprivacy` moves next to the sources, where both dependency
+  managers can bundle it — CocoaPods through `resource_bundles`, Swift Package
+  Manager through `.process()`.
+
+### Added
+
+- `ios/levalgo_battery_status/Package.swift`.
+- A CI matrix that builds the example app and runs the XCTest suite under each
+  dependency manager, plus a `pod lib lint` job.
+
+### Notes
+
+- The Dart API is unchanged. Upgrading from `0.2.0` on a supported Flutter
+  version needs no code edits.
+- Apps that have not migrated to Swift Package Manager keep resolving the
+  plugin through CocoaPods with no action required.
+
 ## 0.2.0
 
 The iOS native layer moves from Objective-C to Swift. The Dart API is

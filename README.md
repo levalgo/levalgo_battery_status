@@ -24,6 +24,9 @@ stream of state changes.
 | iOS 13.0+ | Yes, own native layer    |
 | Android   | No                       |
 
+Requires **Flutter 3.41 or later**. If you are on an older Flutter, use
+`0.2.x`, which is identical apart from Swift Package Manager support.
+
 Android is deliberately not declared: declaring a platform without
 implementing it leaves a `MissingPluginException` waiting for the first person
 who installs it.
@@ -32,7 +35,7 @@ who installs it.
 
 ```yaml
 dependencies:
-  levalgo_battery_status: ^0.2.0
+  levalgo_battery_status: ^0.3.0
 ```
 
 ## Usage
@@ -92,24 +95,48 @@ try {
 
 The value of this repository is in its history, not only in the current code.
 
-| Tag      | State                   | What the diff shows           |
-| -------- | ----------------------- | ----------------------------- |
-| `v0.1.0` | Objective-C + CocoaPods | The legacy starting point     |
-| `v0.2.0` | Swift + CocoaPods       | The Swift migration, isolated |
+| Tag      | State                            | What the diff shows           |
+| -------- | -------------------------------- | ----------------------------- |
+| `v0.1.0` | Objective-C + CocoaPods          | The legacy starting point     |
+| `v0.2.0` | Swift + CocoaPods                | The Swift migration, isolated |
+| `v0.3.0` | Swift + SPM **and** CocoaPods    | The SPM migration, isolated   |
 
-Read the diff directly:
+Read the diffs directly:
 [`v0.1.0...v0.2.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.1.0...v0.2.0)
+·
+[`v0.2.0...v0.3.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.2.0...v0.3.0)
 
 **[MIGRATION.md](MIGRATION.md) walks through what changed and why**: the
 podspec keys that came and went, why the Swift class has to be `public` and
 `NSObject`-derived for the generated registrant to find it, how the
-`NSNotificationCenter` teardown changed shape, and the protocol that made the
-native layer testable.
-
-Next up: Swift Package Manager alongside CocoaPods, in its own tag.
+`NSNotificationCenter` teardown changed shape, the protocol that made the
+native layer testable, and the directory rule that forced the Swift Package
+Manager restructure.
 
 The Objective-C code stays reachable after the migration, at tag `v0.1.0` and
 on the `objc-implementation` branch.
+
+## Dependency managers
+
+Both are supported. Apps that have migrated to Swift Package Manager resolve
+the plugin through `ios/levalgo_battery_status/Package.swift`; apps still on
+CocoaPods resolve it through `ios/levalgo_battery_status.podspec`. Both compile
+the same sources.
+
+```
+ios/
+├── levalgo_battery_status.podspec          ← CocoaPods
+└── levalgo_battery_status/
+    ├── Package.swift                       ← Swift Package Manager
+    └── Sources/levalgo_battery_status/
+        ├── BatteryProviding.swift
+        ├── LevalgoBatteryStatusPlugin.swift
+        └── PrivacyInfo.xcprivacy
+```
+
+Supporting only one would break somebody: dropping CocoaPods breaks apps that
+have not migrated, and shipping without a `Package.swift` breaks the ones that
+have.
 
 ## Testing the native layer
 
