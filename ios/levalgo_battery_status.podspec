@@ -1,29 +1,38 @@
 #
-# To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
-# Run `pod lib lint levalgo_battery_status.podspec` to validate before publishing.
+# Syntax reference: http://guides.cocoapods.org/syntax/podspec.html.
+# To validate before publishing:
+#   pod lib lint ios/levalgo_battery_status.podspec --configuration=Debug --skip-tests
 #
 Pod::Spec.new do |s|
   s.name             = 'levalgo_battery_status'
-  s.version          = '0.0.1'
-  s.summary          = 'A new Flutter plugin project.'
+  s.version          = '0.1.0'
+  s.summary          = 'Battery level and charging state of the device.'
   s.description      = <<-DESC
-A new Flutter plugin project.
+Flutter plugin exposing the battery level, the charging state and a stream of
+state changes. The iOS implementation is written in Objective-C.
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://github.com/levalgo/levalgo_battery_status'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.author           = { 'Luis Vallejo' => 'levalgo03@gmail.com' }
   s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*'
+
+  # The .m files are compiled and the .h files published: the registrant
+  # Flutter generates is Objective-C and needs to import the class header.
+  s.source_files        = 'Classes/**/*.{h,m}'
+  s.public_header_files = 'Classes/**/*.h'
+
   s.dependency 'Flutter'
-  s.platform = :ios, '12.0'
+  s.platform = :ios, '13.0'
 
-  # Flutter.framework does not contain a i386 slice.
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
-  s.swift_version = '5.0'
+  # Flutter.framework does not contain an i386 slice.
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
+  }
 
-  # If your plugin requires a privacy manifest, for example if it uses any
-  # required reason APIs, update the PrivacyInfo.xcprivacy file to describe your
-  # plugin's privacy impact, and then uncomment this line. For more information,
-  # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
-  # s.resource_bundles = {'levalgo_battery_status_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  # The plugin does not track users and uses no required-reason APIs, but
+  # Apple expects every dependency to declare its privacy manifest.
+  s.resource_bundles = {
+    'levalgo_battery_status_privacy' => ['Resources/PrivacyInfo.xcprivacy']
+  }
 end
