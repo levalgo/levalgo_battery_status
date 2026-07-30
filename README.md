@@ -31,7 +31,7 @@ who installs it.
 
 ```yaml
 dependencies:
-  levalgo_battery_status: ^0.1.0
+  levalgo_battery_status: ^0.2.0
 ```
 
 ## Usage
@@ -91,12 +91,34 @@ try {
 
 The value of this repository is in its history, not only in the current code.
 
-| Tag      | State                   | What the diff shows        |
-| -------- | ----------------------- | -------------------------- |
-| `v0.1.0` | Objective-C + CocoaPods | The legacy starting point  |
+| Tag      | State                   | What the diff shows           |
+| -------- | ----------------------- | ----------------------------- |
+| `v0.1.0` | Objective-C + CocoaPods | The legacy starting point     |
+| `v0.2.0` | Swift + CocoaPods       | The Swift migration, isolated |
 
-Next up: Swift, and then Swift Package Manager alongside CocoaPods, each in
-its own tag.
+Read the diff directly:
+[`v0.1.0...v0.2.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.1.0...v0.2.0)
+
+Next up: Swift Package Manager alongside CocoaPods, in its own tag.
+
+The Objective-C code stays reachable after the migration, at tag `v0.1.0` and
+on the `objc-implementation` branch.
+
+## Testing the native layer
+
+Device readings sit behind the `BatteryProviding` protocol, which the plugin
+takes through its initializer:
+
+```swift
+public init(
+  battery: BatteryProviding = DeviceBattery(),
+  notificationCenter: NotificationCenter = .default
+)
+```
+
+Production code gets `DeviceBattery()`; tests inject a stub with fixed values.
+That is what lets the whole XCTest suite run on the simulator, where `UIDevice`
+reports no real battery data.
 
 ## Development
 
@@ -113,6 +135,17 @@ cd example && flutter test integration_test
 
 # Validate the podspec
 pod lib lint ios/levalgo_battery_status.podspec --configuration=Debug --skip-tests
+```
+
+The Swift layer's XCTests live in the example app's `RunnerTests` target. Run
+them from Xcode with **Product > Test**, or from the terminal:
+
+```bash
+cd example && flutter build ios --config-only --no-codesign
+xcodebuild test \
+  -workspace example/ios/Runner.xcworkspace \
+  -scheme Runner \
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
 ## License
