@@ -1,16 +1,23 @@
-# levalgo_battery_status_example
+# levalgo_battery_status example
 
-Demonstrates how to use the levalgo_battery_status plugin.
+Minimal app showing the battery level, the charging state, and subscribing to
+the stream of state changes.
 
-## Getting Started
+## Running it
 
-This project is a starting point for a Flutter application.
+A physical device is required. On the iOS simulator the battery level is not
+available, and the app says so on screen instead of showing a percentage.
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter run
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## What to look at in the code
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+`lib/main.dart` is deliberately short. The parts worth reading:
+
+- the initial state is read with `getBatteryState()`, because the stream only
+  emits on changes and not on subscription;
+- the subscription is cancelled in `dispose()`, which is what makes the native
+  layer remove its `NSNotificationCenter` observer;
+- the `UNAVAILABLE` error is caught and explained rather than left to blow up.
