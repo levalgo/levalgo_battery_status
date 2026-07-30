@@ -8,7 +8,8 @@ stream of state changes.
 > A portfolio package. It exists to hand-write the native layer of a Flutter
 > plugin and then migrate it in two isolated steps: Objective-C to Swift, and
 > CocoaPods to Swift Package Manager. Each step lives in its own git tag so the
-> diff can be read on its own.
+> diff can be read on its own, and [MIGRATION.md](MIGRATION.md) explains what
+> changed at each one.
 >
 > **If you need this in production, use
 > [`battery_plus`](https://pub.dev/packages/battery_plus).** It is maintained
@@ -98,6 +99,12 @@ The value of this repository is in its history, not only in the current code.
 
 Read the diff directly:
 [`v0.1.0...v0.2.0`](https://github.com/levalgo/levalgo_battery_status/compare/v0.1.0...v0.2.0)
+
+**[MIGRATION.md](MIGRATION.md) walks through what changed and why**: the
+podspec keys that came and went, why the Swift class has to be `public` and
+`NSObject`-derived for the generated registrant to find it, how the
+`NSNotificationCenter` teardown changed shape, and the protocol that made the
+native layer testable.
 
 Next up: Swift Package Manager alongside CocoaPods, in its own tag.
 

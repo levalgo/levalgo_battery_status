@@ -6,10 +6,8 @@
 name: CI
 
 on:
-  push:
-    branches: [main, objc-implementation]
-  pull_request:
-    branches: [main]
+  # Run on demand for now. Push and pull_request triggers go back in once
+  # this repository's Actions quota is available again.
   workflow_dispatch:
 
 env:
