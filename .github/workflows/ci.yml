@@ -1,0 +1,74 @@
+# Continuous verification for the plugin.
+#
+# Why it exists: the iOS native layer only really compiles with Xcode, and
+# GitHub's macOS runners ship with it. This keeps the native code compiled on
+# every push.
+name: CI
+
+on:
+  push:
+    branches: [main, objc-implementation]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Pinned deliberately to the same version as the development environment, so
+  # CI and local cannot disagree. Swift Package Manager will raise this to
+  # 3.41 or later, the minimum its FlutterFramework dependency requires.
+  FLUTTER_VERSION: "3.32.4"
+
+jobs:
+  dart:
+    name: Dart - analysis and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Package tests
+        run: flutter test
+
+      - name: Example app tests
+        working-directory: example
+        run: flutter pub get && flutter test
+
+  ios:
+    name: iOS - compile the native layer
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Runner Xcode version
+        run: xcodebuild -version
+
+      - name: Install dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build the example app
+        # This is the step that actually compiles the plugin's native sources:
+        # it runs pod install and then xcodebuild over the plugin pod.
+        # Unsigned, because the runner has no certificates.
+        working-directory: example
+        run: flutter build ios --no-codesign
