@@ -61,7 +61,8 @@ unchanged: anyone already on `0.1.0` has nothing to update.
 
 - The plugin class is still `public` and still derives from `NSObject`. Both
   are required for the registrant Flutter generates, which is Objective-C, to
-  find it at runtime.
+  see it: only `NSObject`-derived, `public` declarations are emitted into the
+  Objective-C interface Swift generates for the module.
 - The Objective-C code remains available at tag `v0.1.0` and on the
   `objc-implementation` branch.
 
